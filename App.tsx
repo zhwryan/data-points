@@ -25,6 +25,33 @@ import { Player, GameAction, StatType, STAT_LABELS } from './types';
 
 const INITIAL_ROSTER = "球队1:队长名,队员1,队员2;球队2:队长名,队员3,队员4";
 
+// --- Hooks ---
+function usePersistedState<T>(key: string, initialValue: T) {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.warn(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (state === undefined) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(state));
+      }
+    } catch (error) {
+      console.warn(`Error writing localStorage key "${key}":`, error);
+    }
+  }, [key, state]);
+
+  return [state, setState] as const;
+}
+
 const App: React.FC = () => {
   // --- 状态定义 ---
   // 使用 localStorage 持久化存储 matchUrl 和 playersText
@@ -41,18 +68,18 @@ const App: React.FC = () => {
   }, [playersText]);
 
   const [players, setPlayers] = useState<Player[]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [history, setHistory] = useState<GameAction[]>([]);
-  const [redoStack, setRedoStack] = useState<GameAction[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = usePersistedState<string | null>('match_selectedPlayerId', null);
+  const [history, setHistory] = usePersistedState<GameAction[]>('match_history', []);
+  const [redoStack, setRedoStack] = usePersistedState<GameAction[]>('match_redoStack', []);
   const [isLoading, setIsLoading] = useState(false);
-  const [groundingSources, setGroundingSources] = useState<{ title: string, uri: string }[]>([]);
+  const [groundingSources, setGroundingSources] = usePersistedState<{ title: string, uri: string }[]>('match_groundingSources', []);
 
   // 计分板状态
-  const [homeScores, setHomeScores] = useState<number[]>([26, 34, 30, 30]);
-  const [awayScores, setAwayScores] = useState<number[]>([30, 25, 31, 30]);
-  const [homeTotal, setHomeTotal] = useState<number | undefined>(undefined);
-  const [awayTotal, setAwayTotal] = useState<number | undefined>(undefined);
-  const [teamNames, setTeamNames] = useState<string[]>(['宏疆队', '沐骁队']);
+  const [homeScores, setHomeScores] = usePersistedState<number[]>('match_homeScores', [0, 0, 0, 0]);
+  const [awayScores, setAwayScores] = usePersistedState<number[]>('match_awayScores', [0, 0, 0, 0]);
+  const [homeTotal, setHomeTotal] = usePersistedState<number | undefined>('match_homeTotal', undefined);
+  const [awayTotal, setAwayTotal] = usePersistedState<number | undefined>('match_awayTotal', undefined);
+  const [teamNames, setTeamNames] = usePersistedState<string[]>('match_teamNames', ['球队1', '球队2']);
 
   // --- 球员名单解析逻辑 ---
   useEffect(() => {
@@ -211,12 +238,30 @@ const App: React.FC = () => {
   };
 
   const exportAsText = () => {
-    const text = JSON.stringify(history, null, 2);
+    if (history.length === 0) {
+      alert("没有数据可导出");
+      return;
+    }
+
+    const chronHistory = [...history].reverse();
+    // Re-calculate start time from the chronological first event to ensure consistency
+    const firstTimestamp = chronHistory[0].timestamp;
+
+    const lines = chronHistory.map(action => {
+      const diff = Math.max(0, Math.floor((action.timestamp - firstTimestamp) / 1000));
+      const m = Math.floor(diff / 60).toString().padStart(2, '0');
+      const s = (diff % 60).toString().padStart(2, '0');
+      const timeStr = `${m}:${s}`;
+      const label = STAT_LABELS[action.type] || action.type;
+      return `${timeStr} ${action.playerName} ${label}`;
+    });
+
+    const text = lines.join('\n');
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `match_events_${Date.now()}.json`;
+    link.download = `match_events_${Date.now()}.txt`;
     link.click();
   };
 
@@ -249,6 +294,18 @@ const App: React.FC = () => {
 
   const currentPlayerStats = useMemo(() => selectedPlayerId ? calculateStats(selectedPlayerId) : null, [history, selectedPlayerId]);
   const teamsList = Array.from(new Set(players.map(p => p.team)));
+
+  const startTime = useMemo(() => {
+    if (history.length === 0) return 0;
+    return Math.min(...history.map(h => h.timestamp));
+  }, [history]);
+
+  const formatRelativeTime = (ts: number) => {
+    const diff = Math.max(0, Math.floor((ts - startTime) / 1000));
+    const m = Math.floor(diff / 60).toString().padStart(2, '0');
+    const s = (diff % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans p-2 md:p-4">
@@ -407,30 +464,24 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* 统计面板 */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 shrink-0">
-              <div className="mb-4 text-center">
-                <h3 className="font-black text-xl text-indigo-600">
+            {/* 统计面板 - 紧凑模式 */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-2 shrink-0">
+              <div className="mb-2 text-center border-b border-slate-100 pb-1">
+                <h3 className="font-bold text-xl text-indigo-600">
                   {selectedPlayer ? `${selectedPlayer.name} <${selectedPlayer.team}>` : '请选择球员'}
                 </h3>
               </div>
-              <div className="grid grid-cols-5 gap-y-4 gap-x-2 text-center">
-                <MiniStat label="罚球命中" value={currentPlayerStats?.ftm} />
-                <MiniStat label="二分命中" value={currentPlayerStats?.fg2m} />
-                <MiniStat label="三分命中" value={currentPlayerStats?.fg3m} />
-                <MiniStat label="罚球不中" value={currentPlayerStats?.fta ? currentPlayerStats.fta - currentPlayerStats.ftm : 0} />
-                <MiniStat label="两分不中" value={currentPlayerStats?.fg2a ? currentPlayerStats.fg2a - currentPlayerStats.fg2m : 0} />
-
-                <MiniStat label="三分不中" value={currentPlayerStats?.fg3a ? currentPlayerStats.fg3a - currentPlayerStats.fg3m : 0} />
-                <MiniStat label="防守篮板" value={currentPlayerStats?.dreb} />
-                <MiniStat label="进攻篮板" value={currentPlayerStats?.oreb} />
+              <div className="grid grid-cols-9 gap-1 text-center">
+                {/* 投篮相关逻辑: 投篮 = 2分+3分; 格式 命中-出手 */}
+                <MiniStat label="得分" value={currentPlayerStats?.pts} highlight />
+                <MiniStat label="篮板(前-后)" value={`${currentPlayerStats?.reb || 0} (${currentPlayerStats?.oreb || 0}-${currentPlayerStats?.dreb || 0})`} />
                 <MiniStat label="助攻" value={currentPlayerStats?.ast} />
-                <MiniStat label="抢断" value={currentPlayerStats?.stl} />
-
                 <MiniStat label="盖帽" value={currentPlayerStats?.blk} />
+                <MiniStat label="抢断" value={currentPlayerStats?.stl} />
                 <MiniStat label="失误" value={currentPlayerStats?.tov} />
-                <MiniStat label="篮板" value={currentPlayerStats?.reb} />
-                <MiniStat label="总分" value={currentPlayerStats?.pts} highlight />
+                <MiniStat label="投篮" value={`${(currentPlayerStats?.fg2m || 0) + (currentPlayerStats?.fg3m || 0)}-${(currentPlayerStats?.fg2a || 0) + (currentPlayerStats?.fg3a || 0)}`} />
+                <MiniStat label="3分" value={`${currentPlayerStats?.fg3m || 0}-${currentPlayerStats?.fg3a || 0}`} />
+                <MiniStat label="罚球" value={`${currentPlayerStats?.ftm || 0}-${currentPlayerStats?.fta || 0}`} />
               </div>
             </div>
 
@@ -446,13 +497,20 @@ const App: React.FC = () => {
                   history.map(a => (
                     <div key={a.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
                       <div className="flex items-center gap-3">
-                        <span className="text-slate-400 font-mono">{new Date(a.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                        <span className="text-slate-400 font-mono">{formatRelativeTime(a.timestamp)}</span>
                         <span className="font-bold text-slate-700 w-16 truncate">{a.playerName}</span>
                         <span className={`font-bold ${a.type.includes('MISS') || a.type === 'TURNOVER' || a.type === 'FOUL' ? 'text-rose-500' : 'text-emerald-500'}`}>
                           {STAT_LABELS[a.type]}
                         </span>
                       </div>
-                      <button onClick={() => setHistory(history.filter(h => h.id !== a.id))} className="text-slate-300 hover:text-rose-500 transition-colors">
+                      <button
+                        onClick={() => {
+                          if (window.confirm('确定要删除这条记录吗？')) {
+                            setHistory(history.filter(h => h.id !== a.id));
+                          }
+                        }}
+                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -517,10 +575,10 @@ const ToolBtn: React.FC<SubComponentProps> = ({ icon, label, onClick, color }) =
   );
 };
 
-const MiniStat: React.FC<SubComponentProps> = ({ label, value, highlight }) => (
+const MiniStat: React.FC<SubComponentProps & { value?: string | number }> = ({ label, value, highlight }) => (
   <div className="flex flex-col items-center">
-    <span className="text-[10px] text-slate-400 mb-1">{label}</span>
-    <span className={`text-lg font-black ${highlight ? 'text-indigo-600' : 'text-slate-800'}`}>{value || 0}</span>
+    <span className="text-lg font-black text-slate-700 mb-1 whitespace-nowrap">{label}</span>
+    <span className={`text-base font-bold ${highlight ? 'text-indigo-600' : 'text-slate-600'}`}>{value ?? 0}</span>
   </div>
 );
 
