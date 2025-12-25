@@ -8,6 +8,18 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/api/proxy': {
+            target: 'https://api-direct.xiaoqiumi.co',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/proxy/, ''),
+            secure: false,
+            headers: {
+              'Referer': 'https://h5static.xiaoqiumi.com/',
+              'Origin': 'https://h5static.xiaoqiumi.com'
+            }
+          }
+        }
       },
       plugins: [react()],
       define: {

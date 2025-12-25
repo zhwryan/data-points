@@ -8,6 +8,18 @@ export type StatType =
   | 'BLOCK' | 'TURNOVER'
   | 'FOUL';
 
+export interface TeamData {
+  name: string;
+  scores: number[];
+  players: string[];
+  total?: number;
+}
+
+export interface MatchData {
+  home: TeamData;
+  away: TeamData;
+}
+
 export interface Player {
   id: string;
   name: string;
