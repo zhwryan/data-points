@@ -434,7 +434,7 @@ const App: React.FC = () => {
         </div>
 
         {/* 主体区域：三列布局 */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-[calc(100vh-220px)] min-h-[600px]">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 flex-1 md:min-h-0">
 
           {/* 左列：球员选择 */}
           <section className="md:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col overflow-hidden">
