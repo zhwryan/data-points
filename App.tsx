@@ -243,18 +243,18 @@ const App: React.FC = () => {
     // Note: timestamps might not be unique, so we should rely on array index if possible,
     // but here we are rendering or exporting, so let's filter by time.
     // Ideally we store the score snapshot in the event itself, but calculating it on the fly is okay for now.
-    
+
     // Sort history chronologically to replay
     const sorted = [...currentHistory].sort((a, b) => a.timestamp - b.timestamp);
     const eventIndex = sorted.findIndex(h => h.timestamp === targetTimestamp);
-    
+
     if (eventIndex === -1) return { home: 0, away: 0 };
-    
+
     const relevantHistory = sorted.slice(0, eventIndex + 1);
-    
+
     let homeScore = 0;
     let awayScore = 0;
-    
+
     // Assuming teamNames[0] is home and teamNames[1] is away
     // We need to match team names. 
     // The current state `teamNames` might change if user edits players, 
@@ -267,7 +267,7 @@ const App: React.FC = () => {
       if (a.type === 'FT_MADE') points = 1;
       if (a.type === '2PT_MADE') points = 2;
       if (a.type === '3PT_MADE') points = 3;
-      
+
       if (points > 0) {
         if (a.team === homeTeamName) homeScore += points;
         else if (a.team === awayTeamName) awayScore += points;
@@ -275,6 +275,18 @@ const App: React.FC = () => {
     });
 
     return { home: homeScore, away: awayScore };
+  };
+
+  const getPlayerStatSnapshot = (currentHistory: GameAction[], playerId: string, type: StatType, targetTimestamp: number) => {
+    const relevantHistory = currentHistory.filter(h => h.playerId === playerId && h.timestamp <= targetTimestamp);
+
+    if (type === 'OFF_REB' || type === 'DEF_REB') {
+      return relevantHistory.filter(h => h.type === 'OFF_REB' || h.type === 'DEF_REB').length;
+    }
+    if (['ASSIST', 'STEAL', 'BLOCK', 'TURNOVER', 'FOUL'].includes(type)) {
+      return relevantHistory.filter(h => h.type === type).length;
+    }
+    return null;
   };
 
   const exportAsText = () => {
@@ -293,15 +305,21 @@ const App: React.FC = () => {
       const s = (diff % 60).toString().padStart(2, '0');
       const timeStr = `${m}:${s}`;
       const label = STAT_LABELS[action.type] || action.type;
-      
+
       let line = `${timeStr} ${action.playerName}(${action.team}) ${label}`;
-      
+
       // If it's a scoring event, append the score
       if (['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(action.type)) {
         const score = getScoreSnapshot(history, action.timestamp);
         line += ` (${score.home}-${score.away})`;
       }
-      
+
+      // If it's an auxiliary event, append the player's total for that stat
+      if (['DEF_REB', 'OFF_REB', 'ASSIST', 'STEAL', 'BLOCK', 'TURNOVER', 'FOUL'].includes(action.type)) {
+        const count = getPlayerStatSnapshot(history, action.playerId, action.type, action.timestamp);
+        if (count !== null) line += ` (${count})`;
+      }
+
       return line;
     });
 
@@ -555,6 +573,10 @@ const App: React.FC = () => {
                           {['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(a.type) && (() => {
                             const score = getScoreSnapshot(history, a.timestamp);
                             return <span className="ml-1 text-slate-500 text-sm font-normal">({score.home}-{score.away})</span>;
+                          })()}
+                          {['DEF_REB', 'OFF_REB', 'ASSIST', 'STEAL', 'BLOCK', 'TURNOVER', 'FOUL'].includes(a.type) && (() => {
+                            const count = getPlayerStatSnapshot(history, a.playerId, a.type, a.timestamp);
+                            return count !== null ? <span className="ml-1 text-slate-500 text-sm font-normal">({count})</span> : null;
                           })()}
                         </span>
                       </div>
