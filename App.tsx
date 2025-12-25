@@ -227,7 +227,7 @@ const App: React.FC = () => {
       const fgMade = s.fg2m + s.fg3m;
       const fgAtt = s.fg2a + s.fg3a;
 
-      csv += `${p.name},${s.pts},${s.reb},${s.oreb},${s.dreb},${s.ast},${s.blk},${s.stl},${s.tov},${fgMade}-${fgAtt},${s.fg3m}-${s.fg3a},${s.ftm}-${s.fta},${p.team}\n`;
+      csv += `${p.name},${s.pts},${s.reb},${s.oreb},${s.dreb},${s.ast},${s.blk},${s.stl},${s.tov},'${fgMade}-${fgAtt},'${s.fg3m}-${s.fg3a},'${s.ftm}-${s.fta},${p.team}\n`;
     });
     const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
