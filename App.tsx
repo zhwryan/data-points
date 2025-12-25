@@ -537,24 +537,24 @@ const App: React.FC = () => {
             {/* 日志流 */}
             <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
               <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <span className="text-xs font-bold text-slate-500">日志 ({history.length})</span>
+                <span className="text-sm font-bold text-slate-500">日志 ({history.length})</span>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/50">
                 {history.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-slate-300 text-xs">暂无记录</div>
+                  <div className="h-full flex items-center justify-center text-slate-300 text-sm">暂无记录</div>
                 ) : (
                   history.map(a => (
-                    <div key={a.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
+                    <div key={a.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-sm">
                       <div className="flex items-center gap-3">
                         <span className="text-slate-400 font-mono">{formatRelativeTime(a.timestamp)}</span>
                         <span className="font-bold text-slate-700 w-24 truncate" title={`${a.playerName} (${a.team})`}>
-                          {a.playerName} <span className="text-[10px] text-slate-400 font-normal">({a.team})</span>
+                          {a.playerName} <span className="text-xs text-slate-400 font-normal">({a.team})</span>
                         </span>
                         <span className={`font-bold ${a.type.includes('MISS') || a.type === 'TURNOVER' || a.type === 'FOUL' ? 'text-rose-500' : 'text-emerald-500'}`}>
                           {STAT_LABELS[a.type]}
                           {['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(a.type) && (() => {
                             const score = getScoreSnapshot(history, a.timestamp);
-                            return <span className="ml-1 text-slate-500 text-xs font-normal">({score.home}-{score.away})</span>;
+                            return <span className="ml-1 text-slate-500 text-sm font-normal">({score.home}-{score.away})</span>;
                           })()}
                         </span>
                       </div>
