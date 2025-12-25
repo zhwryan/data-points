@@ -552,15 +552,10 @@ const App: React.FC = () => {
                         </span>
                         <span className={`font-bold ${a.type.includes('MISS') || a.type === 'TURNOVER' || a.type === 'FOUL' ? 'text-rose-500' : 'text-emerald-500'}`}>
                           {STAT_LABELS[a.type]}
-                          {['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(a.type) ? (() => {
+                          {['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(a.type) && (() => {
                             const score = getScoreSnapshot(history, a.timestamp);
                             return <span className="ml-1 text-slate-500 text-sm font-normal">({score.home}-{score.away})</span>;
-                          })() : (
-                            ['OFF_REB', 'DEF_REB', 'ASSIST', 'STEAL', 'BLOCK', 'TURNOVER', 'FOUL'].includes(a.type) && (() => {
-                              const count = getPlayerActionCount(history, a);
-                              return <span className="ml-1 text-slate-500 text-sm font-normal">({count})</span>;
-                            })()
-                          )}
+                          })()}
                         </span>
                       </div>
                       <button
