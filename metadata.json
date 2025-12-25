@@ -1,0 +1,5 @@
+{
+  "name": "Basketball Stats Tracker",
+  "description": "A comprehensive basketball game statistics tracking system with real-time logging, player performance analysis, and data export capabilities.",
+  "requestFramePermissions": []
+}
