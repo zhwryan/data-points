@@ -547,7 +547,7 @@ const App: React.FC = () => {
                     <div key={a.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
                       <div className="flex items-center gap-3">
                         <span className="text-slate-400 font-mono">{formatRelativeTime(a.timestamp)}</span>
-                        <span className="font-bold text-slate-700 w-16 truncate" title={`${a.playerName} (${a.team})`}>
+                        <span className="font-bold text-slate-700 w-24 truncate" title={`${a.playerName} (${a.team})`}>
                           {a.playerName} <span className="text-[10px] text-slate-400 font-normal">({a.team})</span>
                         </span>
                         <span className={`font-bold ${a.type.includes('MISS') || a.type === 'TURNOVER' || a.type === 'FOUL' ? 'text-rose-500' : 'text-emerald-500'}`}>
