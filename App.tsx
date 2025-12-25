@@ -227,7 +227,7 @@ const App: React.FC = () => {
       const fgMade = s.fg2m + s.fg3m;
       const fgAtt = s.fg2a + s.fg3a;
 
-      csv += `${p.name},${s.pts},${s.reb},${s.oreb},${s.dreb},${s.ast},${s.blk},${s.stl},${s.tov},'${fgMade}-${fgAtt},'${s.fg3m}-${s.fg3a},'${s.ftm}-${s.fta},${p.team}\n`;
+      csv += `${p.name},${s.pts},${s.reb},${s.oreb},${s.dreb},${s.ast},${s.blk},${s.stl},${s.tov},\t${fgMade}-${fgAtt},\t${s.fg3m}-${s.fg3a},\t${s.ftm}-${s.fta},${p.team}\n`;
     });
     const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -235,6 +235,46 @@ const App: React.FC = () => {
     link.href = url;
     link.download = `basketball_stats_${Date.now()}.csv`;
     link.click();
+  };
+
+  const getScoreSnapshot = (currentHistory: GameAction[], targetTimestamp: number) => {
+    // Calculate score up to the event (inclusive)
+    // We need to filter history up to this timestamp
+    // Note: timestamps might not be unique, so we should rely on array index if possible,
+    // but here we are rendering or exporting, so let's filter by time.
+    // Ideally we store the score snapshot in the event itself, but calculating it on the fly is okay for now.
+    
+    // Sort history chronologically to replay
+    const sorted = [...currentHistory].sort((a, b) => a.timestamp - b.timestamp);
+    const eventIndex = sorted.findIndex(h => h.timestamp === targetTimestamp);
+    
+    if (eventIndex === -1) return { home: 0, away: 0 };
+    
+    const relevantHistory = sorted.slice(0, eventIndex + 1);
+    
+    let homeScore = 0;
+    let awayScore = 0;
+    
+    // Assuming teamNames[0] is home and teamNames[1] is away
+    // We need to match team names. 
+    // The current state `teamNames` might change if user edits players, 
+    // but usually it's stable during a match.
+    const homeTeamName = teamNames[0];
+    const awayTeamName = teamNames[1];
+
+    relevantHistory.forEach(a => {
+      let points = 0;
+      if (a.type === 'FT_MADE') points = 1;
+      if (a.type === '2PT_MADE') points = 2;
+      if (a.type === '3PT_MADE') points = 3;
+      
+      if (points > 0) {
+        if (a.team === homeTeamName) homeScore += points;
+        else if (a.team === awayTeamName) awayScore += points;
+      }
+    });
+
+    return { home: homeScore, away: awayScore };
   };
 
   const exportAsText = () => {
@@ -253,7 +293,16 @@ const App: React.FC = () => {
       const s = (diff % 60).toString().padStart(2, '0');
       const timeStr = `${m}:${s}`;
       const label = STAT_LABELS[action.type] || action.type;
-      return `${timeStr} ${action.playerName} ${label}`;
+      
+      let line = `${timeStr} ${action.playerName}(${action.team}) ${label}`;
+      
+      // If it's a scoring event, append the score
+      if (['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(action.type)) {
+        const score = getScoreSnapshot(history, action.timestamp);
+        line += ` (${score.home}-${score.away})`;
+      }
+      
+      return line;
     });
 
     const text = lines.join('\n');
@@ -498,9 +547,15 @@ const App: React.FC = () => {
                     <div key={a.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
                       <div className="flex items-center gap-3">
                         <span className="text-slate-400 font-mono">{formatRelativeTime(a.timestamp)}</span>
-                        <span className="font-bold text-slate-700 w-16 truncate">{a.playerName}</span>
+                        <span className="font-bold text-slate-700 w-16 truncate" title={`${a.playerName} (${a.team})`}>
+                          {a.playerName} <span className="text-[10px] text-slate-400 font-normal">({a.team})</span>
+                        </span>
                         <span className={`font-bold ${a.type.includes('MISS') || a.type === 'TURNOVER' || a.type === 'FOUL' ? 'text-rose-500' : 'text-emerald-500'}`}>
                           {STAT_LABELS[a.type]}
+                          {['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(a.type) && (() => {
+                            const score = getScoreSnapshot(history, a.timestamp);
+                            return <span className="ml-1 text-slate-500 text-xs font-normal">({score.home}-{score.away})</span>;
+                          })()}
                         </span>
                       </div>
                       <button
