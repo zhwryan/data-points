@@ -1,91 +1,111 @@
-// Using standard Web API types which are available in Netlify Functions v2 (Node 18+)
-// No external imports to avoid build errors if @netlify/functions is not installed.
+import { request } from "node:https";
+import { URL } from "node:url";
 
 export default async (req: Request, context: any) => {
-  // Parse the request URL
   const url = new URL(req.url);
   
-  // Logic to determine the target path
-  // We expect requests like: /api/proxy/api/MatchInfo?param=value
-  // We want to fetch: https://api-direct.xiaoqiumi.co/api/MatchInfo?param=value
-  
-  // Remove the proxy prefix
+  // Determine target path
   let path = url.pathname;
   if (path.startsWith('/api/proxy')) {
     path = path.replace('/api/proxy', '');
   } else if (path.startsWith('/.netlify/functions/proxy')) {
-    // Fallback if the rewrite behaves differently
     path = path.replace('/.netlify/functions/proxy', '');
   }
 
-  // Ensure path starts with / if not empty
   if (path && !path.startsWith('/')) {
     path = '/' + path;
   }
 
   // Construct target URL
-  const targetUrl = `https://api-direct.xiaoqiumi.co${path}${url.search}`;
+  const targetHost = "api-direct.xiaoqiumi.co";
+  const targetPath = `${path}${url.search}`;
   
-  console.log(`[Proxy] ${req.method} ${url.pathname} -> ${targetUrl}`);
+  console.log(`[Proxy] ${req.method} ${targetPath} -> https://${targetHost}${targetPath}`);
 
-  // Prepare headers for the upstream request
-  const headers = new Headers(req.headers);
-  
-  // Clean up headers that shouldn't be forwarded or need override
-  headers.delete("host");
-  headers.delete("connection");
-  headers.delete("content-length"); // Let fetch calculate this
-  headers.delete("cookie"); // Privacy: don't forward cookies unless necessary
-  
-  // Set the specific headers required by the Small Fan API
-  headers.set("Referer", "https://h5static.xiaoqiumi.com/");
-  headers.set("Origin", "https://h5static.xiaoqiumi.com");
-  headers.set("Host", "api-direct.xiaoqiumi.co");
-  
-  // Common browser headers simulation
-  if (!headers.has("User-Agent")) {
-    headers.set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36");
+  // Prepare body
+  let body: Buffer | null = null;
+  if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
+    try {
+      const arrayBuffer = await req.arrayBuffer();
+      body = Buffer.from(arrayBuffer);
+    } catch (e) {
+      console.error("Error reading request body:", e);
+    }
   }
 
-  try {
-    const response = await fetch(targetUrl, {
+  // Prepare headers
+  const headers: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    // Filter out headers
+    if (["host", "connection", "content-length", "cookie"].includes(key.toLowerCase())) return;
+    headers[key] = value;
+  });
+
+  // Set required headers
+  headers["Referer"] = "https://h5static.xiaoqiumi.com/";
+  headers["Origin"] = "https://h5static.xiaoqiumi.com";
+  headers["Host"] = targetHost;
+  if (!headers["User-Agent"]) {
+    headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+  }
+
+  // If we have a body, set content-length
+  if (body) {
+    headers["Content-Length"] = String(body.length);
+  }
+
+  return new Promise((resolve) => {
+    const options = {
+      hostname: targetHost,
+      port: 443,
+      path: targetPath,
       method: req.method,
       headers: headers,
-      body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
-      // @ts-ignore
-      duplex: 'half' // Required for Node.js fetch with body
-    });
+      rejectUnauthorized: false, // DANGER: Ignore SSL certificate errors (Expired Cert)
+    };
 
-    // Prepare response headers
-    const responseHeaders = new Headers(response.headers);
-    
-    // Ensure CORS headers are set for the frontend
-    responseHeaders.set("Access-Control-Allow-Origin", "*");
-    responseHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    responseHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, deviceid, product, usertoken, versions, source, lytime, priority");
-    
-    // Handle OPTIONS preflight immediately
-    if (req.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: responseHeaders
+    const proxyReq = request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        const responseBody = Buffer.concat(chunks);
+        
+        // Prepare response headers
+        const responseHeaders = new Headers();
+        if (res.headers) {
+          for (const [key, value] of Object.entries(res.headers)) {
+            if (Array.isArray(value)) {
+              value.forEach(v => responseHeaders.append(key, v));
+            } else if (value) {
+              responseHeaders.set(key, value);
+            }
+          }
+        }
+
+        // Set CORS
+        responseHeaders.set("Access-Control-Allow-Origin", "*");
+        responseHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        responseHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, deviceid, product, usertoken, versions, source, lytime, priority");
+
+        resolve(new Response(responseBody, {
+          status: res.statusCode || 200,
+          statusText: res.statusMessage || "OK",
+          headers: responseHeaders
+        }));
       });
-    }
+    });
 
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
+    proxyReq.on("error", (e) => {
+      console.error("[Proxy Error]", e);
+      resolve(new Response(JSON.stringify({ error: "Proxy failed", details: e.message }), {
+        status: 502,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      }));
     });
-    
-  } catch (error: any) {
-    console.error("[Proxy Error]", error);
-    return new Response(JSON.stringify({ error: "Proxy failed", details: error.message }), {
-      status: 502,
-      headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      },
-    });
-  }
+
+    if (body) {
+      proxyReq.write(body);
+    }
+    proxyReq.end();
+  });
 };
