@@ -25,6 +25,46 @@ import { Player, GameAction, StatType, STAT_LABELS } from './types';
 
 const INITIAL_ROSTER = "球队1:队长名,队员1,队员2;球队2:队长名,队员3,队员4";
 
+const parseImportedText = (text: string): GameAction[] => {
+  const lines = text.split('\n').filter(line => line.trim());
+  const actions: GameAction[] = [];
+
+  const labelToType: Record<string, StatType> = {};
+  (Object.entries(STAT_LABELS) as [StatType, string][]).forEach(([key, value]) => {
+    labelToType[value] = key;
+  });
+
+  // Use current time as the base for the match start (00:00)
+  const matchStartTime = Date.now();
+
+  lines.forEach(line => {
+    // Regex: MM:SS Player(Team) Label
+    // Matches: "00:05 库里(勇士) 三分命中 (3-0)"
+    const match = line.match(/^(\d{2}):(\d{2})\s+(.+?)\((.+?)\)\s+(\S+)/);
+
+    if (match) {
+      const [_, mm, ss, playerName, teamName, label] = match;
+      const type = labelToType[label];
+
+      if (type) {
+        const seconds = parseInt(mm, 10) * 60 + parseInt(ss, 10);
+        actions.push({
+          id: crypto.randomUUID(),
+          playerId: `${teamName}-${playerName}`,
+          playerName: playerName.trim(),
+          team: teamName.trim(),
+          type: type,
+          timestamp: matchStartTime + seconds * 1000
+        });
+      }
+    }
+  });
+
+  // The text file is chronological (oldest to newest).
+  // The history state expects reverse chronological (newest to oldest).
+  return actions.reverse();
+};
+
 // --- Hooks ---
 function usePersistedState<T>(key: string, initialValue: T) {
   const [state, setState] = useState<T>(() => {
@@ -415,21 +455,30 @@ const App: React.FC = () => {
 
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json';
+    input.accept = '.txt';
     input.onchange = (e: any) => {
       const file = e.target.files[0];
       if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
           try {
-            const json = JSON.parse(event.target?.result as string);
-            if (Array.isArray(json)) {
-              setHistory(json);
-              alert("导入成功！");
+            const text = event.target?.result as string;
+            // Simple validation heuristic
+            if (!text.includes(':') || !text.includes('(') || !text.includes(')')) {
+              alert("文件格式看似不正确，请确保是导出的日志文本格式");
+              return;
+            }
+
+            const parsedActions = parseImportedText(text);
+
+            if (parsedActions.length > 0) {
+              setHistory(parsedActions);
+              alert(`导入成功！共加载 ${parsedActions.length} 条记录。`);
             } else {
-              alert("文件格式不正确");
+              alert("未解析出有效记录，请检查文件格式。");
             }
           } catch (err) {
+            console.error(err);
             alert("解析文件失败");
           }
         };
