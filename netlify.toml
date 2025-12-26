@@ -1,10 +1,18 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Always return exit code 0 to cancel the build for git commits
+  # This effectively disables auto-builds on push
+  ignore = "exit 0"
 
 [dev]
   command = "npm run dev"
   port = 3000
+
+[[plugins]]
+  package = "netlify-plugin-cache"
+  [plugins.inputs]
+    paths = ["node_modules"]
 
 [[redirects]]
   from = "/api/proxy/*"
