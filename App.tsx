@@ -677,8 +677,8 @@ const App: React.FC = () => {
               </div>
               <div className="grid grid-cols-4 gap-2">
                 <ToolBtn icon={<Table className="w-4 h-4" />} label="导出表格" onClick={exportAsTable} color="slate" />
-                <ToolBtn icon={<FileText className="w-4 h-4" />} label="导出文本" onClick={exportAsText} color="slate" />
-                <ToolBtn icon={<Upload className="w-4 h-4" />} label="导入文本" onClick={handleImportText} color="slate" />
+                <ToolBtn icon={<FileText className="w-4 h-4" />} label="导出日志" onClick={exportAsText} color="slate" />
+                <ToolBtn icon={<Upload className="w-4 h-4" />} label="导入日志" onClick={handleImportText} color="slate" />
                 <ToolBtn icon={<Download className="w-4 h-4" />} label="一键导出" onClick={handleBatchExport} color="rose" />
               </div>
             </div>
