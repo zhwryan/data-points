@@ -332,6 +332,20 @@ const App: React.FC = () => {
     return pts;
   };
 
+  const getExportFileName = (extension: string) => {
+    const date = new Date();
+    const YY = String(date.getFullYear()).slice(-2);
+    const MM = String(date.getMonth() + 1).padStart(2, '0');
+    const DD = String(date.getDate()).padStart(2, '0');
+    const HH = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const ss = String(date.getSeconds()).padStart(2, '0');
+    const timeStr = `${YY}${MM}${DD}_${HH}${mm}${ss}`;
+
+    const teamsStr = teamNames.join('_VS_') || 'Match';
+    return `${teamsStr}_${timeStr}.${extension}`;
+  };
+
   const exportAsTable = () => {
     // Column headers matching the reference Excel format
     let csv = "姓名,得分,篮板,前场板,后场板,助攻,盖帽,抢断,失误,投篮,3分,罚球,球队\n";
@@ -347,7 +361,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `basketball_stats_${Date.now()}.csv`;
+    link.download = getExportFileName('csv');
     link.click();
   };
 
@@ -442,7 +456,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `match_events_${Date.now()}.txt`;
+    link.download = getExportFileName('txt');
     link.click();
   };
 
