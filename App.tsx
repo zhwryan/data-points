@@ -375,8 +375,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans p-2 md:p-4">
-      <div className="max-w-[1440px] mx-auto space-y-4">
+    <div className="min-h-screen md:h-screen md:overflow-hidden bg-[#F8FAFC] text-slate-900 font-sans p-2 md:p-4 flex flex-col">
+      <div className="max-w-[1440px] mx-auto w-full md:h-full flex flex-col gap-4">
 
         {/* 顶部区域：配置与比分 */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
