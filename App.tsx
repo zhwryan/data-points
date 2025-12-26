@@ -446,6 +446,14 @@ const App: React.FC = () => {
     link.click();
   };
 
+  const handleBatchExport = () => {
+    exportAsTable();
+    // Small delay to ensure browser handles both downloads
+    setTimeout(() => {
+      exportAsText();
+    }, 500);
+  };
+
   const handleImportText = () => {
     // Check if there are existing logs before importing
     if (history.length > 0) {
@@ -671,7 +679,7 @@ const App: React.FC = () => {
                 <ToolBtn icon={<Table className="w-4 h-4" />} label="导出表格" onClick={exportAsTable} color="slate" />
                 <ToolBtn icon={<FileText className="w-4 h-4" />} label="导出文本" onClick={exportAsText} color="slate" />
                 <ToolBtn icon={<Upload className="w-4 h-4" />} label="导入文本" onClick={handleImportText} color="slate" />
-                <ToolBtn icon={<Download className="w-4 h-4" />} label="一键导出" onClick={exportAsText} color="rose" />
+                <ToolBtn icon={<Download className="w-4 h-4" />} label="一键导出" onClick={handleBatchExport} color="rose" />
               </div>
             </div>
 
