@@ -80,6 +80,7 @@ const App: React.FC = () => {
   const [homeTotal, setHomeTotal] = usePersistedState<number | undefined>('match_homeTotal', undefined);
   const [awayTotal, setAwayTotal] = usePersistedState<number | undefined>('match_awayTotal', undefined);
   const [teamNames, setTeamNames] = usePersistedState<string[]>('match_teamNames', ['球队1', '球队2']);
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
   // --- 球员名单解析逻辑 ---
   useEffect(() => {
@@ -175,10 +176,13 @@ const App: React.FC = () => {
   };
 
   const handleClear = () => {
-    if (window.confirm("确定要清空所有记录吗？")) {
-      setHistory([]);
-      setRedoStack([]);
-    }
+    setIsClearModalOpen(true);
+  };
+
+  const confirmClear = () => {
+    setHistory([]);
+    setRedoStack([]);
+    setIsClearModalOpen(false);
   };
 
   const handleMerge = () => {
@@ -456,27 +460,42 @@ const App: React.FC = () => {
 
           {/* 左列：球员选择 */}
           <section className="md:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 font-bold text-slate-700 mb-4">
+            <div className="flex items-center gap-2 font-bold text-slate-700 mb-4 shrink-0">
               <Users className="w-5 h-5 text-indigo-600" />
               <span>球员</span>
             </div>
-            <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar">
+            <div className="flex-1 flex flex-col min-h-0 gap-2">
               {teamsList.map(team => (
-                <div key={team} className="space-y-3">
-                  <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-3 bg-indigo-50/50 py-1 rounded-r-lg">
+                <div key={team} className="flex-1 flex flex-col min-h-0 gap-2">
+                  <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-3 bg-indigo-50/50 py-1 rounded-r-lg shrink-0">
                     <h3 className="text-sm font-black text-slate-800">{team}</h3>
                     <span className="text-xs font-bold text-indigo-600 px-2">{calculateTeamScore(team)}分</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {players.filter(p => p.team === team).map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => setSelectedPlayerId(p.id)}
-                        className={`py-3 px-2 rounded-lg text-sm font-bold transition-all truncate border ${selectedPlayerId === p.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'}`}
-                      >
-                        {p.name}
-                      </button>
-                    ))}
+                  <div className="flex-1 flex gap-2 min-h-0">
+                    {/* Left Column */}
+                    <div className="flex-1 flex flex-col gap-1 min-h-0">
+                      {players.filter(p => p.team === team).filter((_, i) => i % 2 === 0).map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedPlayerId(p.id)}
+                          className={`flex-1 min-h-[2rem] px-2 rounded-lg text-sm font-bold transition-all truncate border flex items-center justify-center ${selectedPlayerId === p.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'}`}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Right Column */}
+                    <div className="flex-1 flex flex-col gap-1 min-h-0">
+                      {players.filter(p => p.team === team).filter((_, i) => i % 2 !== 0).map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedPlayerId(p.id)}
+                          className={`flex-1 min-h-[2rem] px-2 rounded-lg text-sm font-bold transition-all truncate border flex items-center justify-center ${selectedPlayerId === p.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'}`}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -484,13 +503,13 @@ const App: React.FC = () => {
           </section>
 
           {/* 中列：快速操作 (垂直列表) */}
-          <section className="md:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col">
-            <div className="flex items-center gap-2 font-bold text-slate-700 mb-4">
+          <section className="md:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 font-bold text-slate-700 mb-4 shrink-0">
               <Target className="w-5 h-5 text-rose-500" />
               <span>快速操作</span>
             </div>
-            <div className="flex-1 overflow-y-auto pr-1">
-              <div className="flex flex-col gap-3">
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 flex flex-col gap-2 min-h-0">
                 <StatBtn label="罚球命中" color="emerald" onClick={() => handleRecordStat('FT_MADE')} />
                 <StatBtn label="罚球不中" color="rose" onClick={() => handleRecordStat('FT_MISS')} />
                 <StatBtn label="两分命中" color="emerald" onClick={() => handleRecordStat('2PT_MADE')} />
@@ -557,7 +576,7 @@ const App: React.FC = () => {
               <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <span className="text-sm font-bold text-slate-500">日志 ({history.length})</span>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50/50">
+              <div className="flex-1 overflow-y-auto p-2 pb-8 space-y-2 bg-slate-50/50">
                 {history.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-slate-300 text-sm">暂无记录</div>
                 ) : (
@@ -572,7 +591,7 @@ const App: React.FC = () => {
                           {STAT_LABELS[a.type]}
                           {['FT_MADE', '2PT_MADE', '3PT_MADE'].includes(a.type) && (() => {
                             const score = getScoreSnapshot(history, a.timestamp);
-                            return <span className="ml-1 text-slate-500 text-sm font-normal">({score.home}-{score.away})</span>;
+                            return <span className="ml-1 text-slate-500 text-sm font-normal">({teamNames[0]} {score.home} - {score.away} {teamNames[1]})</span>;
                           })()}
                           {['DEF_REB', 'OFF_REB', 'ASSIST', 'STEAL', 'BLOCK', 'TURNOVER', 'FOUL'].includes(a.type) && (() => {
                             const count = getPlayerStatSnapshot(history, a.playerId, a.type, a.timestamp);
@@ -599,6 +618,34 @@ const App: React.FC = () => {
           </section>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {isClearModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl p-6 w-[90%] max-w-sm shadow-2xl transform transition-all scale-100">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">确认清空？</h3>
+            <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+              此操作将清除所有比赛记录且无法恢复。
+              <br />
+              确定要继续吗？
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setIsClearModalOpen(false)}
+                className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmClear}
+                className="px-4 py-2 bg-rose-500 text-white font-bold hover:bg-rose-600 rounded-lg shadow-sm shadow-rose-200 transition-colors text-sm"
+              >
+                确认清空
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -625,7 +672,7 @@ const StatBtn: React.FC<SubComponentProps> = ({ label, color, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className={`w-full py-3 rounded-xl text-sm font-black shadow-md transition-all active:scale-95 ${themes[color || 'slate']}`}
+      className={`w-full flex-1 min-h-[2rem] rounded-xl text-sm font-black shadow-md transition-all active:scale-95 flex items-center justify-center ${themes[color || 'slate']}`}
     >
       {label}
     </button>
