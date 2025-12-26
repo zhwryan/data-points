@@ -20,6 +20,7 @@ import {
   Download,
   Save
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { MatchDataService } from './services/matchDataService';
 import { Player, GameAction, StatType, STAT_LABELS } from './types';
 
@@ -296,7 +297,118 @@ const App: React.FC = () => {
   };
 
   const handleMerge = () => {
-    alert("合并功能需要后端支持或文件系统访问，当前Web版本暂不支持。");
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,.xlsx,.xls';
+    input.multiple = true;
+    input.onchange = async (e: any) => {
+      const files = Array.from(e.target.files as FileList);
+      if (files.length === 0) return;
+
+      setIsLoading(true);
+      try {
+        const aggregatedStats = new Map<string, any>();
+
+        for (const file of files) {
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data);
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          for (const row of jsonData as any[]) {
+            const getString = (key: string) => (row[key] || row[key.trim()] || '').toString().trim();
+            const getVal = (key: string) => {
+              const val = row[key] || row[key.trim()];
+              return Number(val) || 0;
+            };
+
+            const name = getString('姓名');
+            const team = getString('球队');
+
+            if (!name || name === '姓名') continue;
+
+            const key = `${team}-${name}`;
+
+            if (!aggregatedStats.has(key)) {
+              aggregatedStats.set(key, {
+                '姓名': name,
+                '球队': team,
+                '得分': 0, '篮板': 0, '前场板': 0, '后场板': 0, '助攻': 0, '盖帽': 0, '抢断': 0, '失误': 0,
+                '投篮命中': 0, '投篮出手': 0,
+                '3分命中': 0, '3分出手': 0,
+                '罚球命中': 0, '罚球出手': 0
+              });
+            }
+
+            const stat = aggregatedStats.get(key);
+
+            const add = (field: string, val: any) => {
+              stat[field] += val;
+            };
+
+            add('得分', getVal('得分'));
+            add('篮板', getVal('篮板'));
+            add('前场板', getVal('前场板'));
+            add('后场板', getVal('后场板'));
+            add('助攻', getVal('助攻'));
+            add('盖帽', getVal('盖帽'));
+            add('抢断', getVal('抢断'));
+            add('失误', getVal('失误'));
+
+            const parseMadeAtt = (str: string) => {
+              if (typeof str === 'string' && str.includes('-')) {
+                const parts = str.split('-');
+                return [Number(parts[0]) || 0, Number(parts[1]) || 0];
+              }
+              return [0, 0];
+            };
+
+            const [fgM, fgA] = parseMadeAtt(getString('投篮'));
+            stat['投篮命中'] += fgM;
+            stat['投篮出手'] += fgA;
+
+            const [fg3M, fg3A] = parseMadeAtt(getString('3分'));
+            stat['3分命中'] += fg3M;
+            stat['3分出手'] += fg3A;
+
+            const [ftM, ftA] = parseMadeAtt(getString('罚球'));
+            stat['罚球命中'] += ftM;
+            stat['罚球出手'] += ftA;
+          }
+        }
+
+        const result = Array.from(aggregatedStats.values()).map(s => ({
+          '姓名': s['姓名'],
+          '得分': s['得分'],
+          '篮板': s['篮板'],
+          '前场板': s['前场板'],
+          '后场板': s['后场板'],
+          '助攻': s['助攻'],
+          '盖帽': s['盖帽'],
+          '抢断': s['抢断'],
+          '失误': s['失误'],
+          '投篮': `${s['投篮命中']}-${s['投篮出手']}`,
+          '3分': `${s['3分命中']}-${s['3分出手']}`,
+          '罚球': `${s['罚球命中']}-${s['罚球出手']}`,
+          '球队': s['球队']
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(result);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Merged Stats");
+        XLSX.writeFile(wb, `Merged_Stats_${new Date().getTime()}.xlsx`);
+
+        alert(`成功合并 ${files.length} 个文件！`);
+
+      } catch (err: any) {
+        console.error(err);
+        alert(`合并失败: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    input.click();
   };
 
   const calculateStats = (pId: string) => {
