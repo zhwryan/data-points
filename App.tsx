@@ -407,6 +407,12 @@ const App: React.FC = () => {
   };
 
   const handleImportText = () => {
+    // Check if there are existing logs before importing
+    if (history.length > 0) {
+      alert("当前有未清除的日志，请先清空后再导入！");
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
