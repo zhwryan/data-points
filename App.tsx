@@ -52,6 +52,79 @@ function usePersistedState<T>(key: string, initialValue: T) {
   return [state, setState] as const;
 }
 
+// --- Enhanced Undo/Redo Hook ---
+function useUndoableState<T>(key: string, initialValue: T) {
+  // We only persist the "present" state
+  const [state, setState] = usePersistedState<T>(key, initialValue);
+
+  // Past and Future are transient (in-memory only for this session)
+  // If we wanted them persisted, we'd need separate keys or a complex object
+  const [past, setPast] = useState<T[]>([]);
+  const [future, setFuture] = useState<T[]>([]);
+
+  // Keep references to state for use in callbacks to avoid stale closures without frequent recreation
+  const stateRef = React.useRef(state);
+  const pastRef = React.useRef(past);
+  const futureRef = React.useRef(future);
+
+  useEffect(() => {
+    stateRef.current = state;
+    pastRef.current = past;
+    futureRef.current = future;
+  }, [state, past, future]);
+
+  const set = useCallback((newState: T | ((prev: T) => T)) => {
+    const currentState = stateRef.current;
+    const computedState = newState instanceof Function ? newState(currentState) : newState;
+
+    if (computedState === currentState) return;
+
+    setPast(prev => [...prev, currentState]);
+    setFuture([]); // Clear future on new action
+    setState(computedState);
+  }, [setState]);
+
+  const undo = useCallback(() => {
+    const currentPast = pastRef.current;
+    if (currentPast.length === 0) return;
+
+    const previous = currentPast[currentPast.length - 1];
+    const newPast = currentPast.slice(0, currentPast.length - 1);
+
+    setFuture(prev => [stateRef.current, ...prev]);
+    setPast(newPast);
+    setState(previous);
+  }, [setState]);
+
+  const redo = useCallback(() => {
+    const currentFuture = futureRef.current;
+    if (currentFuture.length === 0) return;
+
+    const next = currentFuture[0];
+    const newFuture = currentFuture.slice(1);
+
+    setPast(prev => [...prev, stateRef.current]);
+    setFuture(newFuture);
+    setState(next);
+  }, [setState]);
+
+  const reset = (newState: T) => {
+    setPast([]);
+    setFuture([]);
+    setState(newState);
+  };
+
+  return {
+    state,
+    setState: set,
+    undo,
+    redo,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
+    reset
+  };
+}
+
 const App: React.FC = () => {
   // --- 状态定义 ---
   // 使用 localStorage 持久化存储 matchUrl 和 playersText
@@ -69,8 +142,18 @@ const App: React.FC = () => {
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = usePersistedState<string | null>('match_selectedPlayerId', null);
-  const [history, setHistory] = usePersistedState<GameAction[]>('match_history', []);
-  const [redoStack, setRedoStack] = usePersistedState<GameAction[]>('match_redoStack', []);
+
+  // Use new undoable state for history
+  const {
+    state: history,
+    setState: setHistory,
+    undo: handleUndo,
+    redo: handleRedo,
+    canUndo,
+    canRedo,
+    reset: resetHistory
+  } = useUndoableState<GameAction[]>('match_history', []);
+
   const [isLoading, setIsLoading] = useState(false);
   const [groundingSources, setGroundingSources] = usePersistedState<{ title: string, uri: string }[]>('match_groundingSources', []);
 
@@ -158,30 +241,17 @@ const App: React.FC = () => {
       timestamp: Date.now()
     };
     setHistory(prev => [newAction, ...prev]);
-    setRedoStack([]);
-  }, [selectedPlayer]);
+    // redoStack is handled automatically by useUndoableState
+  }, [selectedPlayer, setHistory]);
 
-  const handleUndo = () => {
-    if (history.length === 0) return;
-    const [last, ...rest] = history;
-    setHistory(rest);
-    setRedoStack(prev => [last, ...prev]);
-  };
-
-  const handleRedo = () => {
-    if (redoStack.length === 0) return;
-    const [next, ...rest] = redoStack;
-    setRedoStack(rest);
-    setHistory(prev => [next, ...prev]);
-  };
+  // handleUndo and handleRedo are now provided by useUndoableState
 
   const handleClear = () => {
     setIsClearModalOpen(true);
   };
 
   const confirmClear = () => {
-    setHistory([]);
-    setRedoStack([]);
+    resetHistory([]);
     setIsClearModalOpen(false);
   };
 
